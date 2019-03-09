@@ -1,8 +1,26 @@
 import React, { Component } from 'react';
 import './Tower.css';
-import { moveAction, undoAction, redoAction, resetAction } from './redux.js'
+import { moveRing, undoMove, redoMove, resetGame } from './redux.js'
+import { connect } from 'react-redux';
 
-const mapStateToProps = state => state.present
+const mapStateToProps = state => {
+	let newState = Object.assign({}, state.present);
+	let rods = [];
+	for (let i = 0; i < newState.rods.length; i++)
+		rods.push([...newState.rods[i]])
+	delete newState.rods;
+	newState.rods = rods;
+	return newState;
+}
+
+const mapDispatchToProps = dispatch => {
+	return {
+		moveRing: rods => dispatch(moveRing(rods)),
+		undoMove: () => dispatch(undoMove()),
+		redoMove: () => dispatch(redoMove()),
+		resetGame: startRod => (resetGame(startRod))
+	}
+}
 
 function Rods (props) {
 	return (
@@ -24,12 +42,16 @@ function Ring (props) {
 		id={'ring' + props.num}
 		style={{ bottom: `${(props.position) * 50}px` }} 
 		className="ring-wrapper">
-			<div onMouseDown={props.grabRing(props.num, props.rod)} style={style} className="ring" />
+			<div 
+			onMouseDown={props.grabRing(props.num, props.rod)} 
+			onTouchStart={props.grabRing(props.num, props.rod)}
+			style={style} 
+			className="ring" />
 		</div>
 	)
 }
 
-export default class Presentational extends Component {
+class Presentational extends Component {
 	constructor (props) {
 		super (props);
 		this.state = { ringPos: [] }
@@ -45,7 +67,13 @@ export default class Presentational extends Component {
 			let rod = rods[i];
 			let ringArr = [];
 			for (let j = 0; j < rod.length; j++) {
-				ringArr.push(<Ring grabRing={this.grabRing} key={j} num={rod[j]} rod={i} position={j}/>)
+				ringArr.push(
+					<Ring 
+					grabRing={this.grabRing} 
+					key={j} 
+					num={rod[j]} 
+					rod={i} 
+					position={j}/>)
 			}
 			arr.push(<Rods key={i} num={i} rings={ringArr}/>)
 		}
@@ -66,8 +94,8 @@ export default class Presentational extends Component {
 	}
 
 	dropRing (ringNum, oldRod) {
-		document.onmouseup = document.onmousemove = null;
-		let rods = [...document.getElementsByClassName('rod-wrapper')];
+		document.onmouseup = document.ontouchend = null;
+		document.onmousemove = document.ontouchmove = null;
 		let event = window.event;
 		let wrapperWidth = window.innerWidth/3;
 		let ringX = event.clientX;
@@ -86,14 +114,16 @@ export default class Presentational extends Component {
 			element.style.left = this.state.origPos[1];
 			if (rings[rings.length-1] < ringNum) {
 				setTimeout(() => {
-				alert('A ring can only be placed on another ring that is larger than it. Keep trying though!')},
+				alert(`A ring can only be placed on another ring if it is larger than it. 
+					Keep trying though!'`)},
 				10)
 			}
+			//this.setState({ ringPos: [], origPos: [] })
 		} else {
 			rods[oldRod] = rods[oldRod].filter( ring => ring !== ringNum);
 			rods[newRod].push(ringNum)
 			rods[newRod].sort((a,b) => b - a);
-			this.props.moveAction(rods);
+			this.props.moveRing(rods);
 			this.setState({ ringPos: [], origPos: [] }, () => this.win());
 		}
 	}
@@ -102,15 +132,14 @@ export default class Presentational extends Component {
 		let oldRod = this.props.rods[oldRodNum];
 		if (oldRod[oldRod.length-1] !== ringNum) return;
 		let ringPos = [...this.state.ringPos];
-		let rods = [...document.getElementsByClassName('rod-wrapper')];
 		let elementStyle = document.getElementById(event.target.parentNode.id).style;
 		let origPos = [elementStyle.top, elementStyle.left];
 		event.preventDefault();
 		event.persist();
 		ringPos = [event.clientX, event.clientY];
-		document.onmousemove = this.drag(event.target.parentNode.id);
-		document.onmouseup = () => this.dropRing(ringNum, oldRodNum);
-			this.setState({ ringPos, origPos })
+		document.onmousemove = document.ontouchmove = this.drag(event.target.parentNode.id);
+		document.onmouseup = document.ontouchend = () => this.dropRing(ringNum, oldRodNum);
+		this.setState({ ringPos, origPos })
 	}
 
 	win () {
@@ -118,7 +147,7 @@ export default class Presentational extends Component {
 		for (let i = 0; i < rods.length; i++) {
 			if (i !== this.props.startRod && rods[i].length === 5) {
 				setTimeout(() => alert('You win!'), 10);
-				this.props.resetAction(i);
+				this.props.resetGame(i);
 			}
 		}
 	}
@@ -126,10 +155,15 @@ export default class Presentational extends Component {
 	render () {
 		return (
 			<div id="app">
+				<div id="buttons">
+					<button onClick={this.props.undoMove}>Undo</button>
+					<button onClick={this.props.redoMove}>Redo</button>
+					<button onClick={() => this.props.resetGame(this.props.startRod)}>Reset</button>
+				</div>
 				<h1>Towers of Hanoi</h1>
-				<h2> Can you move all of the rings to a new rod in the same order as below? </h2>
+				<h2> {`How many moves will it take you to move all the rings to a new rod?`} </h2>
 				<p> Click and drag each ring to move it. </p>
-				<p> Only one rings can be moved at a time. </p>
+				<p> Only one ring can be moved at a time. </p>
 				<p> Larger rings cannot be placed on smaller rings. </p>
 				<p> Good luck! </p>
 				<div id="game"> {this.renderRingsandRods()} </div>
@@ -138,11 +172,6 @@ export default class Presentational extends Component {
 	}
 }
 
-export default const Tower = connect(
+export default connect(
 	mapStateToProps, 
-	{ 
-		moveAction, 
-		undoAction, 
-		redoAction, 
-		resetAction 
-	})(Presentational)
+	mapDispatchToProps)(Presentational)
