@@ -18,7 +18,7 @@ const mapDispatchToProps = dispatch => {
 		moveRing: rods => dispatch(moveRing(rods)),
 		undoMove: () => dispatch(undoMove()),
 		redoMove: () => dispatch(redoMove()),
-		resetGame: startRod => (resetGame(startRod))
+		resetGame: startRod => dispatch(resetGame(startRod))
 	}
 }
 
@@ -33,14 +33,14 @@ function Rods (props) {
 
 function Ring (props) {
 	let style = {
-		width: `${props.num * 25 + 100}px`,
+		width: `${100 - (5 - props.num) * 15}%`,
 		backgroundColor: `hsl(${props.num * 75 % 360}, 100%, 45%)`,
 	}
-
+  
 	return (
 		<div 
 		id={'ring' + props.num}
-		style={{ bottom: `${(props.position) * 50}px` }} 
+		style={{ bottom: `${props.position * 25}px` }} 
 		className="ring-wrapper">
 			<div 
 			onMouseDown={props.grabRing(props.num, props.rod)} 
@@ -82,29 +82,31 @@ class Presentational extends Component {
 
 	drag = id => event => {
 			event.preventDefault();
+      let eventX = event.clientX || event.targetTouches[0].pageX;
+      let eventY = event.clientY || event.targetTouches[0].pageY;
 			let element = document.getElementById(id);
 			let ringPos = [...this.state.ringPos];
-			let movementX = ringPos[0] - event.clientX;
-			let movementY = ringPos[1] - event.clientY;
-			ringPos[0] = event.clientX;
-			ringPos[1] = event.clientY;
+			let movementX = ringPos[0] - eventX;
+			let movementY = ringPos[1] - eventY;
+			ringPos[0] = eventX;
+			ringPos[1] = eventY;
 			element.style.top = (element.offsetTop - movementY) + "px";
 			element.style.left = (element.offsetLeft - movementX) + "px";
 			this.setState({ ringPos })
 	}
 
-	dropRing (ringNum, oldRod) {
-		document.onmouseup = document.ontouchend = null;
+	dropRing = (ringNum, oldRod) => event => {
+		document.onmouseup = document.ontouchend = document.ontouchcancel = null;
 		document.onmousemove = document.ontouchmove = null;
-		let event = window.event;
+    let eventX = this.state.ringPos[0];//event.clientX || event.targetTouches[0].pageX;
+    let eventY = this.state.ringPos[1];//event.clientY || event.targetTouches[0].pageY;
 		let wrapperWidth = window.innerWidth/3;
-		let ringX = event.clientX;
-		let tooHigh = event.clientY < window.innerHeight/3;
+		let tooHigh = eventY < window.innerHeight/3;
 		let rods = [...this.props.rods];
 		let newRod, rings;
 
-		if (ringX < wrapperWidth) newRod = 0;
-		else if (ringX < 2 * wrapperWidth) newRod = 1;
+		if (eventX < wrapperWidth) newRod = 0;
+		else if (eventX < 2 * wrapperWidth) newRod = 1;
 		else newRod = 2;
 		rings = rods[newRod];
 
@@ -118,7 +120,6 @@ class Presentational extends Component {
 					Keep trying though!'`)},
 				10)
 			}
-			//this.setState({ ringPos: [], origPos: [] })
 		} else {
 			rods[oldRod] = rods[oldRod].filter( ring => ring !== ringNum);
 			rods[newRod].push(ringNum)
@@ -129,16 +130,18 @@ class Presentational extends Component {
 	}
 
 	grabRing = (ringNum, oldRodNum) => event => {
+    let eventX = event.clientX || event.targetTouches[0].pageX;
+    let eventY = event.clientY || event.targetTouches[0].pageY;
 		let oldRod = this.props.rods[oldRodNum];
 		if (oldRod[oldRod.length-1] !== ringNum) return;
 		let ringPos = [...this.state.ringPos];
-		let elementStyle = document.getElementById(event.target.parentNode.id).style;
-		let origPos = [elementStyle.top, elementStyle.left];
+		let element = document.getElementById(event.target.parentNode.id);
+		let origPos = [element.style.top, element.style.left];
 		event.preventDefault();
 		event.persist();
-		ringPos = [event.clientX, event.clientY];
+		ringPos = [eventX, eventY];
 		document.onmousemove = document.ontouchmove = this.drag(event.target.parentNode.id);
-		document.onmouseup = document.ontouchend = () => this.dropRing(ringNum, oldRodNum);
+		document.onmouseup = document.ontouchend = document.ontouchcancel = this.dropRing(ringNum, oldRodNum);
 		this.setState({ ringPos, origPos })
 	}
 
@@ -146,7 +149,8 @@ class Presentational extends Component {
 		let rods = this.props.rods;
 		for (let i = 0; i < rods.length; i++) {
 			if (i !== this.props.startRod && rods[i].length === 5) {
-				setTimeout(() => alert('You win!'), 10);
+        let score = this.props.moves;
+				setTimeout(() => alert('You won in ' + score + ' moves!'), 10);
 				this.props.resetGame(i);
 			}
 		}
@@ -155,18 +159,36 @@ class Presentational extends Component {
 	render () {
 		return (
 			<div id="app">
-				<div id="buttons">
-					<button onClick={this.props.undoMove}>Undo</button>
-					<button onClick={this.props.redoMove}>Redo</button>
-					<button onClick={() => this.props.resetGame(this.props.startRod)}>Reset</button>
-				</div>
-				<h1>Towers of Hanoi</h1>
-				<h2> {`How many moves will it take you to move all the rings to a new rod?`} </h2>
-				<p> Click and drag each ring to move it. </p>
-				<p> Only one ring can be moved at a time. </p>
-				<p> Larger rings cannot be placed on smaller rings. </p>
-				<p> Good luck! </p>
-				<div id="game"> {this.renderRingsandRods()} </div>
+				<div id="game"> 
+          <div id="buttons">
+            <div 
+              className="moves" 
+              onClick={this.props.undoMove} 
+              onTouchStart={this.props.undoMove}>
+              Undo
+            </div>
+            <div 
+              className="moves" 
+              onClick={this.props.redoMove} 
+              onTouchStart={this.props.redoMove}>
+              Redo
+            </div>
+            <div 
+              className="moves" 
+              onClick={() => this.props.resetGame(this.props.startRod)} 
+              onTouchStart={() => this.props.resetGame(this.props.startRod)}>
+              Reset
+            </div>
+            <div className="moves">{'Move: ' + this.props.moves}</div>
+				  </div>
+          <h1>Towers of Hanoi</h1>
+          <h2> {`How many moves will it take you to move all the rings to a new rod?`} </h2>
+          <p> Click and drag each ring to move it.
+          <br/> Only one ring can be moved at a time.
+          <br/>Larger rings cannot be placed on smaller rings.
+          <br/>Good luck! </p>
+          {this.renderRingsandRods()} 
+        </div>
 			</div>
 		)
 	}

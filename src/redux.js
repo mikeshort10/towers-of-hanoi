@@ -32,6 +32,7 @@ export const resetGame = (startRod = 1) => {
 const initialState = Object.assign({},{
 	past: [],
 	present: {
+    moves: 0,
 		startRod: 1,
 		rods: [
 			[],
@@ -48,6 +49,7 @@ const reducer = (state = Object.assign({}, initialState), action) => {
 			let present = Object.assign({},state.present);
 			delete present.rods;
 			present.rods = action.rods;
+      present.moves++;
 			return {
 				past: state.past.concat(Object.assign({},state.present)),
 				present,
@@ -72,7 +74,8 @@ const reducer = (state = Object.assign({}, initialState), action) => {
 				past: [],
 				present: { 
 					rods: action.rods, 
-					startRod: action.startRod 
+					startRod: action.startRod,
+          moves: 0
 				},
 				future: []
 			}
